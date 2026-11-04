@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ray Bench – mirror and lens simulator</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;600;700&display=swap">
+<style>
+:root{--bg:#f4f6f8;--stage:#fbfcfd;--panel:#fff;--ink:#142033;--mute:#5c6b80;--line:#d7dee7;--grid:#e8edf2;--r1:#e0452b;--r2:#1769d1;--r3:#12935f;--rx:#8a97aa;--img:#a43bd1;--glass:rgba(60,140,220,.18);--glassline:#3b82c4;color-scheme:light;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0c1117;--stage:#10171f;--panel:#151d27;--ink:#e7edf5;--mute:#93a2b6;--line:#27323f;--grid:#1a232d;--r1:#ff6a4f;--r2:#5aa2ff;--r3:#3ad394;--rx:#6a7a8f;--img:#d58bff;--glass:rgba(90,162,255,.16);--glassline:#5aa2ff;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0c1117;--stage:#10171f;--panel:#151d27;--ink:#e7edf5;--mute:#93a2b6;--line:#27323f;--grid:#1a232d;--r1:#ff6a4f;--r2:#5aa2ff;--r3:#3ad394;--rx:#6a7a8f;--img:#d58bff;--glass:rgba(90,162,255,.16);--glassline:#5aa2ff;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Instrument Sans",system-ui,-apple-system,"Segoe UI",sans-serif;line-height:1.45}
+.wrap{max-width:1240px;margin:0 auto;padding:20px 16px 32px}
+h1{font-size:clamp(26px,4vw,38px);margin:0 0 4px;letter-spacing:-.02em}
+.sub{margin:0 0 18px;color:var(--mute);max-width:62ch}
+.app{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:18px;align-items:start}
+@media (max-width:900px){.app{grid-template-columns:minmax(0,1fr)}}
+.stage{background:var(--stage);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+canvas{display:block;width:100%;touch-action:none;cursor:default}
+.hint{margin:0;padding:8px 14px;font-size:13px;color:var(--mute);border-top:1px solid var(--line)}
+.read{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--line)}
+.read div{padding:10px 14px;border-right:1px solid var(--line)}
+.read div:last-child{border-right:0}
+.read b{display:block;font-size:12px;font-weight:600;color:var(--mute)}
+.read span{font-size:18px;font-weight:700;font-variant-numeric:tabular-nums}
+.read .wide{grid-column:span 4;border-top:1px solid var(--line);border-right:0}
+.read .wide span{font-size:16px}
+@media (max-width:600px){.read{grid-template-columns:repeat(2,1fr)}.read div:nth-child(2){border-right:0}.read div:nth-child(-n+2){border-bottom:1px solid var(--line)}.read .wide{grid-column:span 2}}
+aside{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px}
+h2{font-size:14px;margin:0 0 8px}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:16px}
+button{font:inherit;cursor:pointer}
+.seg button{padding:8px 6px;border:1px solid var(--line);background:transparent;color:var(--ink);border-radius:8px;font-size:14px}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--panel);border-color:var(--ink)}
+.row{margin-bottom:11px}
+.row label{display:flex;justify-content:space-between;font-size:14px}
+.row output{font-variant-numeric:tabular-nums;color:var(--mute)}
+input[type=range]{width:100%;accent-color:var(--r2);margin:4px 0 0}
+input:disabled{opacity:.35}
+.chk{display:flex;flex-wrap:wrap;gap:6px 14px;margin:14px 0}
+.chk label{font-size:14px;display:flex;gap:6px;align-items:center}
+.legend{font-size:13px;color:var(--mute);display:grid;gap:3px;margin:12px 0}
+.legend i{display:inline-block;width:18px;height:3px;border-radius:2px;vertical-align:middle;margin-right:8px}
+.reset{width:100%;padding:9px;border:1px solid var(--line);background:transparent;color:var(--ink);border-radius:8px}
+:focus-visible{outline:2px solid var(--r2);outline-offset:2px}
+.row label{align-items:center;gap:8px}
+.num{display:flex;align-items:center;gap:4px;color:var(--mute);font-size:13px;white-space:nowrap}
+.num input{width:88px;text-align:right;font:inherit;font-variant-numeric:tabular-nums;color:var(--ink);background:var(--stage);border:1px solid var(--line);border-radius:6px;padding:3px 6px}
+.num input.bad{border-color:var(--r1);outline-color:var(--r1)}
+.note{font-size:13px;color:var(--mute);margin:0 0 12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>Ray Bench</h1>
+<p class="sub">Place an object in front of a mirror or lens and watch the rays form an image. Drag the object, or change any value in the panel.</p>
+<div class="app">
+<section class="stage">
+<canvas id="cv" aria-label="Ray diagram"></canvas>
+<p class="hint">Drag the arrow sideways to change its distance, or drag its tip to change its height. Light travels left to right.</p>
+<div class="read" id="read"></div>
+</section>
+<aside>
+<h2>Optical element</h2>
+<div class="seg" id="seg"></div>
+<h2>Settings</h2>
+<p class="note">Type any number, or inf and -inf, in the boxes. A negative distance puts a virtual object behind the element, and a negative focal length flips a converging element to diverging. Sliders cover a shorter range.</p>
+<div id="sl"></div>
+<div class="chk" id="chk"></div>
+<div class="legend">
+<span><i style="background:var(--r1)"></i>Parallel to the axis</span>
+<span><i style="background:var(--r2)"></i>Through the centre (pole)</span>
+<span><i style="background:var(--r3)"></i>Aimed at the focus</span>
+<span><i style="background:var(--img)"></i>Image (dashed means virtual)</span>
+</div>
+<button class="reset" id="reset">Reset settings</button>
+</aside>
+</div>
+</div>
+<script>
+const $=s=>document.querySelector(s),cv=$('#cv');
+const TYPES={cl:['Convex lens',1,0],vl:['Concave lens',-1,0],cm:['Concave mirror',1,1],vm:['Convex mirror',-1,1]};
+const DEF={type:'cl',f:15,n:1.5,u:30,h:6,A:18,rays:4,R:15};
+const S={...DEF,show:{p:true,v:true,f:true,r:true}};
+const isM=()=>TYPES[S.type][2],sg=()=>TYPES[S.type][1];
+const F=()=>{const x=sg()*S.f;return x===0?1e-6*sg():x};
+const clamp=(x,a,b)=>Math.min(b,Math.max(a,x));
+const fromR=R=>{let f;if(isM())f=R/2;else{const d=2*(S.n-1);f=d===0?Infinity:R/d}return isNaN(f)?Infinity:f};
+const Rof=f=>{if(isM())return 2*f;const r=2*f*(S.n-1);return isNaN(r)?S.R:r};
+const DEFS=[['u','Object distance',2,65,.5,' cm'],['h','Object height',-15,15,.5,' cm'],['f','Focal length',3,40,.5,' cm'],['R','Radius of curvature',1,120,.5,' cm'],['n','Refractive index (lens)',1.2,2.4,.01,''],['A','Aperture (half-height)',5,25,.5,' cm'],['rays','Extra rays',0,11,1,'']];
+const rng={},txt={},NUM=/^[+-]?(\d+\.?\d*|\.\d+)(e[+-]?\d+)?$/;
+function parse(s,k){s=s.trim().toLowerCase().replace(/cm$/,'').replace(/\u2212/g,'-').replace(/\s+/g,'').replace('∞','inf');let v;
+if(/^[+-]?(inf|infinity)$/.test(s))v=s[0]==='-'?-Infinity:Infinity;else if(NUM.test(s))v=Number(s);else return null;
+if(k==='rays')v=isFinite(v)?clamp(Math.round(v),0,200):(v>0?200:0);return v}
+const fmtIn=v=>v===Infinity?'∞':v===-Infinity?'-∞':String(parseFloat(v.toPrecision(7)));
+DEFS.forEach(([k,l,mn,mx,st,un])=>{const d=document.createElement('div');d.className='row';
+d.innerHTML=`<label for="t_${k}">${l}<span class="num"><input id="t_${k}" type="text" inputmode="decimal" autocomplete="off" spellcheck="false">${un}</span></label><input type="range" min="${mn}" max="${mx}" step="${st}" aria-label="${l} slider">`;
+$('#sl').append(d);rng[k]=d.querySelector('input[type=range]');txt[k]=d.querySelector('input[type=text]');
+rng[k].oninput=()=>apply(k,+rng[k].value);
+txt[k].oninput=()=>{const v=parse(txt[k].value,k);txt[k].classList.toggle('bad',v===null);if(v!==null)apply(k,v,k)};
+txt[k].onblur=()=>{txt[k].classList.remove('bad');sync()};
+txt[k].onkeydown=e=>{if(e.key==='Enter')txt[k].blur()}});
+function apply(k,v,from){S[k]=v;
+if(k==='R')S.f=fromR(v);else if(k==='n')S.f=fromR(S.R);else if(k==='f')S.R=Rof(v);
+sync(from);draw()}
+function sync(skip){DEFS.forEach(([k,,mn,mx])=>{const v=S[k];rng[k].value=isNaN(v)?mn:clamp(v,mn,mx);if(k!==skip)txt[k].value=fmtIn(v)});
+rng.n.disabled=txt.n.disabled=isM();
+const eff=isM()?(F()>0?'cm':'vm'):(F()>0?'cl':'vl');
+document.querySelectorAll('#seg button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.t===eff))}
+Object.keys(TYPES).forEach(t=>{const b=document.createElement('button');b.textContent=TYPES[t][0];b.dataset.t=t;
+b.onclick=()=>{S.type=t;if(isFinite(S.f))S.f=Math.abs(S.f);S.R=Rof(S.f);sync();draw()};$('#seg').append(b)});
+[['p','Principal rays'],['v','Virtual extensions'],['f','Focal points'],['r','Ruler and grid']].forEach(([k,l])=>{
+const lb=document.createElement('label');lb.innerHTML=`<input type="checkbox" checked> ${l}`;
+lb.firstChild.onchange=e=>{S.show[k]=e.target.checked;draw()};$('#chk').append(lb)});
+$('#reset').onclick=()=>{Object.assign(S,DEF);sync();draw()};
+
+let G={s:1,ox:0,oy:0};
+function draw(){
+const cs=getComputedStyle(document.documentElement),C=k=>cs.getPropertyValue(k).trim();
+const dpr=devicePixelRatio||1,W=cv.clientWidth,H=Math.round(clamp(W*.62,320,500));
+cv.style.height=H+'px';cv.width=W*dpr;cv.height=H*dpr;
+const g=cv.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);
+const M=isM(),s=M?W/100:W/140,ox=M?W*.7:W/2,oy=H/2,f=F(),sF=f>=0?1:-1;
+const uI=!isFinite(S.u),uc=uI?0:clamp(S.u,-1e4,1e4),hd=isFinite(S.h)?clamp(S.h,-1e6,1e6):(S.h>0?1e6:-1e6);
+const Ae=Math.max(0,Math.min(Math.abs(isNaN(S.A)?0:S.A),H/2/s-1));
+G={s,ox,oy};
+const X=x=>ox+x*s,Y=y=>oy-y*s,L=400;
+const line=(x1,y1,x2,y2,col,w,dash)=>{g.beginPath();g.setLineDash(dash||[]);g.strokeStyle=col;g.lineWidth=w;g.moveTo(X(x1),Y(y1));g.lineTo(X(x2),Y(y2));g.stroke();g.setLineDash([])};
+g.fillStyle=C('--stage');g.fillRect(0,0,W,H);
+g.font='11px "Instrument Sans",system-ui,sans-serif';g.textAlign='center';
+if(S.show.r){const x0=Math.ceil(-ox/s/10)*10,x1=Math.floor((W-ox)/s/10)*10;
+for(let x=x0;x<=x1;x+=10){line(x,-oy/s,x,oy/s,C('--grid'),1);g.fillStyle=C('--mute');g.fillText(Math.abs(x),X(x),oy+14)}
+for(let y=-Math.floor(oy/s/10)*10;y<=oy/s;y+=10)line(-ox/s,y,(W-ox)/s,y,C('--grid'),1)}
+line(-ox/s,0,(W-ox)/s,0,C('--mute'),1.2,[6,4]);
+// element (shape follows the sign of the focal length)
+g.fillStyle=C('--glass');g.strokeStyle=C('--glassline');g.lineWidth=2;g.beginPath();
+if(M){const Rd=Math.max(2*Math.abs(f),1.5*Ae),d=sF>0?-1:1,xs=y=>d*y*y/(2*Rd);
+for(let y=-Ae;y<=Ae+.01;y+=1){y===-Ae?g.moveTo(X(xs(y)),Y(y)):g.lineTo(X(xs(y)),Y(y))}
+g.lineWidth=3;g.stroke();g.strokeStyle=C('--mute');g.lineWidth=1;g.beginPath();
+for(let y=-Ae;y<=Ae;y+=2){g.moveTo(X(xs(y)),Y(y));g.lineTo(X(xs(y)+1.4),Y(y-1.4))}g.stroke()}
+else{const sag=clamp(Ae*Ae/(2*Math.max(Math.abs(f),Ae||1)),.6,5),P=(x,y)=>[X(x),Y(y)];
+if(sF>0){g.moveTo(...P(0,Ae));g.quadraticCurveTo(...P(2*sag,0),...P(0,-Ae));g.quadraticCurveTo(...P(-2*sag,0),...P(0,Ae))}
+else{const e=sag+1;g.moveTo(...P(-e,Ae));g.lineTo(...P(e,Ae));g.quadraticCurveTo(...P(e-2*sag,0),...P(e,-Ae));g.lineTo(...P(-e,-Ae));g.quadraticCurveTo(...P(-e+2*sag,0),...P(-e,Ae))}
+g.closePath();g.fill();g.stroke()}
+// optics (signed distances; handles u=0, u=±inf, f=±inf)
+const zero=!uI&&Math.abs(uc)<1e-9,den=1/f-(uI?0:1/uc),inf=!zero&&Math.abs(den)<1e-9;
+const v=zero?0:inf?Infinity:1/den;
+let m=zero?1:inf?Infinity:uI?0:-v/uc;if(isNaN(m))m=0;
+const xi=M?-v:v;let yi=m*hd;if(isNaN(yi))yi=0;
+function ray(y,col,w){if(Ae<=0||Math.abs(y)>Ae||!isFinite(y))return;
+let a=0;if(!uI){if(Math.abs(uc)<1e-3)return;a=(y-hd)/uc}
+const a2=a-y/f,d=M?-1:1,L1=Math.min(L,3000/(Math.abs(a)+1e-9)),L2=Math.min(L,3000/(Math.abs(a2)+1e-9));
+if(!uI&&uc>0)line(-uc,hd,0,y,col,w);
+else{line(-L1,y-a*L1,0,y,col,w);if(!uI)line(0,y,-uc,hd,col,1,[4,4])}
+line(0,y,d*L2,y+a2*L2,col,w);
+if(S.show.v&&!inf&&!zero&&v<0&&Math.abs(xi)<1e5)line(0,y,xi,yi,col,1,[4,4])}
+for(let i=0;i<S.rays;i++)ray(-Ae+2*Ae*(i+.5)/S.rays,C('--rx'),1);
+if(S.show.p){const y1=(uI&&(hd===0||Math.abs(hd)>Ae))?Ae*.6:hd;
+ray(y1,C('--r1'),2);ray(0,C('--r2'),2);
+if(!uI&&isFinite(f)&&Math.abs(uc-f)>.01)ray(-hd*f/(uc-f),C('--r3'),2)}
+if(S.show.f){const pts=M?[[-f,'F'],[-2*f,'C']]:[[f,'F'],[-f,'F'],[2*f,'2F'],[-2*f,'2F']];
+g.fillStyle=C('--ink');pts.forEach(([x,t])=>{if(!isFinite(x)||Math.abs(x)>1e3)return;g.beginPath();g.arc(X(x),Y(0),3.5,0,7);g.fill();g.fillText(t,X(x),Y(0)-9)})}
+g.fillStyle=C('--mute');g.fillText(M?'P':'O',X(0)+(M?8:0),Y(0)+(M?-9:16));
+const arrow=(x,y1,col,dash)=>{if(!isFinite(x)||Math.abs(x)>1e5||Math.abs(y1)<.05)return;const t=Math.sign(y1),hh=Math.min(10,Math.abs(y1)*s*.5);
+line(x,0,x,y1,col,3,dash);g.fillStyle=col;g.beginPath();g.moveTo(X(x),Y(y1));g.lineTo(X(x)-5,Y(y1)+t*hh);g.lineTo(X(x)+5,Y(y1)+t*hh);g.fill()};
+if(!inf&&isFinite(xi)&&Math.abs(xi)<1e5){arrow(xi,yi,C('--img'),v<0?[6,4]:null);
+if(Math.abs(yi)<.05){g.fillStyle=C('--img');g.beginPath();g.arc(X(xi),Y(0),4.5,0,7);g.fill()}}
+if(!uI){arrow(-uc,hd,C('--ink'),uc<0?[6,4]:null);
+if(Math.abs(hd)<1e4){g.strokeStyle=C('--ink');g.lineWidth=1.5;g.beginPath();g.arc(X(-uc),Y(hd),7,0,7);g.stroke()}}
+// readout
+const fm=(n,d=1)=>isNaN(n)?'—':n===Infinity?'∞':n===-Infinity?'-∞':(Math.abs(n)>=1e5||(n!==0&&Math.abs(n)<1e-3))?n.toExponential(2):n.toFixed(d);
+let nat;
+if(zero)nat='Image coincides with the object at the element';
+else if(inf)nat='Image at infinity (object at the focal point)';
+else if(uI)nat=(v>0?'Real':'Virtual')+' point image at the focal point';
+else nat=[v>0?'Real':'Virtual',m<0?'inverted':'erect',Math.abs(m)>1.02?'magnified':Math.abs(m)<.98?'diminished':'same size'].join(', ');
+if(!uI&&uc<0&&!zero)nat+=' (virtual object)';
+$('#read').innerHTML=`<div><b>Image distance</b><span>${inf?'∞':fm(v)+' cm'}</span></div><div><b>Magnification</b><span>${inf?'∞':(m>0?'+':'')+fm(m,2)+'×'}</span></div><div><b>Image height</b><span>${inf?'∞':fm(m*S.h)+' cm'}</span></div><div><b>Focal length</b><span>${fm(f)} cm</span></div><div class="wide"><b>Image</b><span>${nat}</span></div>`}
+// dragging
+let drag=null;
+const pt=e=>{const r=cv.getBoundingClientRect();return[e.clientX-r.left,e.clientY-r.top]};
+const tip=()=>{const{s,ox,oy}=G;return[ox-clamp(S.u,-1e4,1e4)*s,oy-clamp(S.h,-1e4,1e4)*s]};
+cv.onpointerdown=e=>{if(!isFinite(S.u))return;const[px,py]=pt(e),[tx,ty]=tip(),oy=G.oy;
+if(Math.hypot(px-tx,py-ty)<20)drag='tip';
+else if(Math.abs(px-tx)<14&&py>Math.min(oy,ty)-6&&py<Math.max(oy,ty)+6)drag='move';
+if(drag){cv.setPointerCapture(e.pointerId);e.preventDefault()}};
+cv.onpointermove=e=>{const[px,py]=pt(e),{s,ox,oy}=G;
+if(!drag){const[tx,ty]=tip();cv.style.cursor=isFinite(S.u)&&Math.hypot(px-tx,py-ty)<20?'grab':'default';return}
+S.u=clamp(Math.round((ox-px)/s*2)/2,-70,70);
+if(drag==='tip')S.h=clamp(Math.round((oy-py)/s*2)/2,-oy/s,oy/s);
+sync();draw()};
+cv.onpointerup=cv.onpointercancel=()=>{drag=null};
+addEventListener('resize',draw);
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change',draw);
+sync();draw();
+</script>
+</body>
+</html>
